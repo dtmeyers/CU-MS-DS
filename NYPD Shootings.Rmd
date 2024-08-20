@@ -56,7 +56,10 @@ ggplot(subset(data, PERP_AGE_GROUP %in% x & VIC_AGE_GROUP %in% x), aes(PERP_AGE_
 model_data <- subset(data, PERP_AGE_GROUP %in% x & VIC_AGE_GROUP %in% x & !is.na(PERP_AGE_GROUP) & !is.na(VIC_AGE_GROUP))
 model_data <- droplevels(model_data)
 model <- randomForest(PERP_AGE_GROUP ~ VIC_AGE_GROUP, data = model_data)
-summary(model)
+print("Perp Age Group")
+table(model_data$PERP_AGE_GROUP)
+print("Victim Age Group")
+table(model_data$VIC_AGE_GROUP)
 print(model)
 ```
 
