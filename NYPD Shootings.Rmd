@@ -1,0 +1,72 @@
+---
+title: "NYPD Shootings"
+author: "D. Meyers"
+date: "2024-07-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# The following libraries need to be installed to knit the .Rmd
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(randomForest)
+```
+
+## Read In Data
+
+```{r import, echo=TRUE}
+data <- read.csv("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD")
+head(data, 5)
+summary(data)
+```
+
+## Clean The Data
+For now, I want to leave empty or null values in the dataset and remove them as needed for specific analyses. For example, two different analyses can be studying the relationship between a perpetrator and victim, which would require removing rows where there is no information about the perpetrator, and looking at the rate at which we have no information about the perpetrator, perhaps linking that to geographical information.
+```{r clean, echo=FALSE}
+data <- subset(data, select = -c(JURISDICTION_CODE, Latitude, Longitude, Lon_Lat))
+data <- data %>%
+  mutate(OCCUR_DATE = mdy(OCCUR_DATE)) %>%
+  mutate(OCCUR_TIME = hms(OCCUR_TIME)) %>%
+  mutate(BORO = factor(BORO)) %>%
+  mutate(LOC_CLASSFCTN_DESC = factor(LOC_CLASSFCTN_DESC)) %>%
+  mutate(LOC_OF_OCCUR_DESC = factor(LOC_OF_OCCUR_DESC)) %>%
+  mutate(STATISTICAL_MURDER_FLAG = factor(STATISTICAL_MURDER_FLAG)) %>%
+  mutate(PERP_AGE_GROUP = factor(PERP_AGE_GROUP)) %>%
+  mutate(VIC_AGE_GROUP = factor(VIC_AGE_GROUP)) %>%
+  mutate(PERP_RACE = factor(PERP_RACE)) %>%
+  mutate(VIC_RACE = factor(VIC_RACE)) %>%
+  mutate(PERP_SEX = factor(PERP_SEX)) %>%
+  mutate(VIC_SEX = factor(VIC_SEX))
+head(data, 5)
+summary(data)
+```
+
+## Victim Age vs Perpetrator Age
+
+```{r plot1, echo=FALSE}
+x <- c("<18", "18-24", "25-44", "45-64", "65+")
+ggplot(subset(data, PERP_AGE_GROUP %in% x & VIC_AGE_GROUP %in% x), aes(PERP_AGE_GROUP, VIC_AGE_GROUP)) +
+  geom_count()
+```
+
+## Model predicting perpetrator age based on victim age
+```{r model1, echo=FALSE}
+model_data <- subset(data, PERP_AGE_GROUP %in% x & VIC_AGE_GROUP %in% x & !is.na(PERP_AGE_GROUP) & !is.na(VIC_AGE_GROUP))
+model_data <- droplevels(model_data)
+model <- randomForest(PERP_AGE_GROUP ~ VIC_AGE_GROUP, data = model_data)
+summary(model)
+print(model)
+```
+
+## Histogram of shootings in each precinct
+
+```{r plot2, echo=FALSE}
+ggplot(data, aes(PRECINCT)) +
+  geom_histogram(binwidth = 1)
+```
+
+## Conclusion
+
+In conclusion, this is a dataset which details shootings in New York City. We can see from the 2 charts that, in general, perpetrators and victims are most likely to be in the 18-44 age range and take place in a small subset of police precincts. There is certainly bias that can exist in the reporting of these numbers; for example, certain precincts may report crime differently/more or less consistently than others. Combining data from neighboring precincts is one way to mitigate this as any differences in reporting should be smoothed out.
