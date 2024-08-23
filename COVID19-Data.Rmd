@@ -1,0 +1,102 @@
+---
+title: "COVID19 Data"
+author: "D. Meyers"
+date: "2024-08-19"
+output:
+html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# The following libraries need to be installed to knit the .Rmd
+library(tidyr)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(randomForest)
+```
+
+## Read In Data
+
+```{r import, echo=TRUE}
+url_in <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/"
+file_names <- c("time_series_covid19_confirmed_US.csv",
+                "time_series_covid19_deaths_US.csv",
+                "time_series_covid19_confirmed_global.csv",
+                "time_series_covid19_deaths_global.csv")
+urls <- paste(url_in, file_names, sep="")
+us_cases <- read.csv(urls[1])
+us_deaths <- read.csv(urls[2])
+global_cases <- read.csv(urls[3])
+global_deaths <- read.csv(urls[4])
+```
+
+## Clean The Data
+
+```{r clean, echo=FALSE}
+us_cases <- us_cases %>% select(-c(UID, iso2, iso3, code3,
+                                   FIPS, Admin2, Combined_Key,
+                                   Lat, Long_))
+us_cases <- us_cases %>%
+  pivot_longer(cols = -c(Province_State,
+                         Country_Region),
+               names_to = "date",
+               values_to = "cases")
+us_cases["date"] <- apply(us_cases["date"], 1, substr, start=2, stop=9)
+#us_cases <- us_cases %>% filter(cases > 0)
+us_cases <- us_cases %>% mutate(date = mdy(date))
+
+us_deaths <- us_deaths %>% select(-c(UID, iso2, iso3, code3, 
+                                     FIPS, Admin2, Combined_Key,
+                                     Lat, Long_, Population))
+us_deaths <- us_deaths %>%
+  pivot_longer(cols = -c(Province_State,
+                         Country_Region),
+               names_to = "date",
+               values_to = "deaths")
+us_deaths["date"] <- apply(us_deaths["date"], 1, substr, start=2, stop=9)
+us_deaths <- us_deaths %>% mutate(date = mdy(date))
+#us_deaths <- us_deaths %>% filter(deaths > 0)
+
+summary(us_cases)
+summary(us_deaths)
+```
+
+## Combine the Data
+```{r join, echo=FALSE}
+us_data <- us_cases %>% 
+  group_by(date) %>%
+  summarise(cases = sum(cases)) %>%
+  full_join(us_deaths %>%
+              group_by(date) %>%
+              summarise(deaths = sum(deaths)))
+
+summary(us_data)
+```
+
+## Time Lagged Case Count
+
+```{r plot1, echo=FALSE}
+ggplot(us_data, aes(x=date, y=cases)) +
+  geom_line()
+```
+
+## Deaths per Case
+``` {r plot2, echo=FALSE}
+ggplot(us_data, aes(x=date, y=deaths/cases)) +
+  geom_line()
+```
+
+## Model Predicting Number of Deaths Based on Number of Cases
+
+After looking at the data, I want to model the number of deaths as a function of the number of cases to see if they are strongly correlated, which I believe they should be if the data was reported accurately.
+
+```{r model1, echo=FALSE}
+model <- randomForest(deaths ~ cases, data = us_data)
+print(model)
+summary(model)
+```
+
+## Conclusion
+
+In conclusion, the COVID data from John's Hopkins can be used to see trends in cases and deaths from COVID-19. Time series charts can be produced for a wide range of regions both in the US and around the world. One potential source of bias that exists is consistency of reporting. In many jurisdictions, diagnosing COVID-19 was difficult due to lack of testing capacity, and in other places, governments actively didn't want to test. This makes it difficult to know how accurate the data is, and subsequently, very difficult to compare trends across jurisdictions.
